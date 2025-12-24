@@ -298,11 +298,11 @@ export default function CustomerPage() {
               Experience world-class grooming at Prashant Hair Saloon. Where traditional techniques meet modern aesthetics to craft your signature look.
             </p>
 
-            <div className="flex flex-wrap justify-center gap-4">
+            <div className="flex flex-wrap justify-center gap-4 mb-8">
               <Button
                 size="lg"
                 variant="hero"
-                className="h-14 px-8 text-base shadow-amber-200/50 hover:shadow-amber-200/80"
+                className="w-full sm:w-auto h-14 px-8 text-base shadow-xl shadow-amber-200/50 hover:shadow-amber-200/80 hover:-translate-y-0.5 transition-all duration-300"
                 onClick={() => {
                   const el = document.getElementById('join-queue');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -311,17 +311,6 @@ export default function CustomerPage() {
                 Book Appointment
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
-              <a
-                href="#services"
-                onClick={(e) => {
-                  e.preventDefault();
-                  const el = document.querySelector('#services');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="inline-flex items-center justify-center h-14 px-8 rounded-lg border-2 border-gray-200 text-gray-700 font-semibold hover:border-amber-600 hover:text-amber-600 transition-colors bg-white/50 backdrop-blur-sm"
-              >
-                View Services
-              </a>
             </div>
 
             <div className="pt-12 border-t border-gray-200/60 grid grid-cols-3 gap-8 max-w-2xl mx-auto">
@@ -675,15 +664,15 @@ export default function CustomerPage() {
 
           <div id="location" className="rounded-2xl border border-gray-200 bg-white p-6 shadow-md">
             <h3 className="text-2xl font-bold text-gray-900 mb-3">Visit Prashant Hair Saloon</h3>
-            <p className="text-gray-600 mb-4">Main Market Road, Near City Center, YourTown</p>
+            <p className="text-gray-600 mb-4">Rukhmai Nagar, Ashelegaon, Ulhasnagar 4</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-gray-200 p-3">
                 <div className="text-sm text-gray-500">Today</div>
-                <div className="font-semibold text-gray-900">Open • 10:00 AM - 9:00 PM</div>
+                <div className="font-semibold text-gray-900">10 AM - 9 PM (Tue Closed)</div>
               </div>
               <div className="rounded-lg border border-gray-200 p-3">
                 <div className="text-sm text-gray-500">Contact</div>
-                <div className="font-semibold text-gray-900">+91 99999 99999</div>
+                <div className="font-semibold text-gray-900">+91 86983 22199</div>
               </div>
             </div>
             <div className="flex flex-wrap gap-3 mt-4">
@@ -694,7 +683,7 @@ export default function CustomerPage() {
                 Get Directions
               </a>
               <a
-                href="tel:+919999999999"
+                href="tel:+918698322199"
                 className="px-4 py-2 rounded-lg border border-gray-300 text-gray-800 font-semibold hover:bg-gray-50 transition-colors"
               >
                 Call Now
@@ -780,11 +769,11 @@ export default function CustomerPage() {
               <ul className="space-y-4 text-sm text-gray-600">
                 <li className="flex items-start gap-3">
                   <MapPin className="size-5 text-amber-500 shrink-0 mt-0.5" />
-                  <span>Main Market Road,<br />Near City Center, YourTown</span>
+                  <span>Rukhmai Nagar, Ashelegaon,<br />Ulhasnagar 4</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <Phone className="size-5 text-amber-500 shrink-0" />
-                  <span>+91 99999 99999</span>
+                  <span>+91 86983 22199</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <Mail className="size-5 text-amber-500 shrink-0" />
@@ -798,11 +787,11 @@ export default function CustomerPage() {
               <h4 className="text-gray-900 font-bold mb-6">Opening Hours</h4>
               <ul className="space-y-3 text-sm text-gray-600">
                 <li className="flex justify-between items-center border-b border-gray-100 pb-2">
-                  <span>Mon - Sat</span>
+                  <span>Mon, Wed - Sun</span>
                   <span className="font-semibold text-gray-900">10:00 AM - 9:00 PM</span>
                 </li>
                 <li className="flex justify-between items-center border-b border-gray-100 pb-2">
-                  <span>Sunday</span>
+                  <span>Tuesday</span>
                   <span className="font-semibold text-amber-600">Closed</span>
                 </li>
               </ul>
@@ -818,9 +807,7 @@ export default function CustomerPage() {
 
             <p>© 2024 Prashant Hair Saloon. All rights reserved.</p>
 
-            <a href="/login" className="flex items-center gap-1 hover:text-amber-600 transition-colors">
-              Staff Login <ExternalLink className="size-3" />
-            </a>
+
           </div>
         </div>
       </footer>
