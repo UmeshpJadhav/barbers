@@ -139,21 +139,30 @@ export default function CustomerPage() {
 
   const checkPositionRef = useRef<(() => Promise<void>) | null>(null);
 
-  const checkPosition = async () => {
-    if (!phoneNumber) return;
+  const checkPosition = async (phoneToCheck?: string) => {
+    const phone = phoneToCheck || phoneNumber;
+    if (!phone) return;
 
     setLoading(true);
     setError('');
 
     try {
-      const data = await queueAPI.getPosition(phoneNumber);
+      const data = await queueAPI.getPosition(phone);
       setPositionData(data);
       setView('position');
+      // Update local state if successful and different
+      if (data.customerName && !customerName) setCustomerName(data.customerName);
+      if (phone !== phoneNumber) setPhoneNumber(phone);
     } catch (err: any) {
-      setError(err.message);
+      // Don't show error on initial load unless it's critical
+      if (!phoneToCheck) setError(err.message);
+
       if (err.message.includes('not in the queue')) {
         setView('join');
         setPositionData(null);
+        // Clean up local storage if we thought we were in queue but aren't
+        localStorage.removeItem('queue_phone');
+        localStorage.removeItem('queue_name');
       }
     } finally {
       setLoading(false);
@@ -167,6 +176,17 @@ export default function CustomerPage() {
 
   useEffect(() => {
     const socket = getSocket();
+
+    // Check for existing session
+    const storedPhone = localStorage.getItem('queue_phone');
+    const storedName = localStorage.getItem('queue_name');
+
+    if (storedPhone) {
+      setPhoneNumber(storedPhone);
+      if (storedName) setCustomerName(storedName);
+      // Verify position immediately
+      checkPosition(storedPhone);
+    }
 
     const setupSocket = () => {
       if (socket.connected) {
@@ -191,7 +211,7 @@ export default function CustomerPage() {
           checkPositionRef.current();
         }
         updateStats();
-        updateStats();
+        updateStats(); // Double update to ensure sync
       });
 
       socket.on('shopStatusUpdated', (data: { isOpen: boolean }) => {
@@ -238,6 +258,11 @@ export default function CustomerPage() {
 
     try {
       const result = await queueAPI.joinQueue(customerName, phoneNumber, service);
+
+      // Save session
+      localStorage.setItem('queue_phone', phoneNumber);
+      localStorage.setItem('queue_name', customerName);
+
       setSuccess(`Welcome ${customerName}!`);
       setPositionData({
         queueNumber: result.queueNumber,
@@ -251,6 +276,10 @@ export default function CustomerPage() {
     } catch (err: any) {
       setError(err.message);
       if (err.message.includes('already in the queue')) {
+        // Even if error, if they are already in queue, save session and show position
+        localStorage.setItem('queue_phone', phoneNumber);
+        if (customerName) localStorage.setItem('queue_name', customerName);
+
         setView('position');
         checkPosition();
       }
@@ -266,6 +295,11 @@ export default function CustomerPage() {
     try {
       await queueAPI.cancelQueue(phoneNumber);
       setSuccess('Queue entry cancelled');
+
+      // Clear session
+      localStorage.removeItem('queue_phone');
+      localStorage.removeItem('queue_name');
+
       setPositionData(null);
       setView('join');
       setPhoneNumber('');
@@ -556,7 +590,7 @@ export default function CustomerPage() {
                         />
                         <Button
                           type="button"
-                          onClick={checkPosition}
+                          onClick={() => checkPosition()}
                           className="w-full h-12 text-base font-bold bg-white text-gray-900 border-2 border-gray-100 hover:border-gray-900 hover:bg-gray-50 rounded-xl transition-all"
                         >
                           Check Status
