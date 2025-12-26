@@ -30,9 +30,11 @@ export interface QueueEntry {
   queueNumber: number;
   customerName: string;
   phoneNumber: string;
+  service: string;
   position: number;
   status: 'waiting' | 'serving' | 'completed' | 'cancelled';
   estimatedWaitTime: number;
+  price?: number;
   joinedAt: string;
 }
 
@@ -49,16 +51,17 @@ export interface PositionResponse {
   status: string;
   estimatedWaitTime: number;
   customerName: string;
+  service?: string;
 }
 
 export const queueAPI = {
-  joinQueue: async (customerName: string, phoneNumber: string): Promise<QueueResponse> => {
+  joinQueue: async (customerName: string, phoneNumber: string, service: string): Promise<QueueResponse> => {
     const response = await fetch(`${API_URL}/queue/join`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ customerName, phoneNumber }),
+      body: JSON.stringify({ customerName, phoneNumber, service }),
     });
 
     if (!response.ok) {
@@ -80,8 +83,9 @@ export const queueAPI = {
     return response.json();
   },
 
-  getActiveQueue: async (): Promise<{ queue: QueueEntry[]; total: number }> => {
-    const response = await authFetch(`${API_URL}/queue/active`);
+  getActiveQueue: async (date?: string): Promise<{ queue: QueueEntry[]; total: number; totalEarnings: number; servedCount: number }> => {
+    const query = date ? `?date=${date}` : '';
+    const response = await authFetch(`${API_URL}/queue/active${query}`);
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -93,10 +97,30 @@ export const queueAPI = {
     return response.json();
   },
 
-  getStats: async (): Promise<{ waiting: number; avgWait: number; servedToday: number; currentQueue: Array<{ name: string; queueNumber: number; status: string }> }> => {
+  getStats: async (): Promise<{ waiting: number; avgWait: number; servedToday: number; currentQueue: Array<{ name: string; queueNumber: number; status: string; service?: string }>; isOpen: boolean }> => {
     const response = await fetch(`${API_URL}/queue/stats`);
     if (!response.ok) {
       throw new Error('Failed to fetch queue stats');
+    }
+    return response.json();
+  },
+
+  getShopStatus: async (): Promise<{ isOpen: boolean }> => {
+    const response = await fetch(`${API_URL}/queue/shop-status`);
+    if (!response.ok) {
+      throw new Error('Failed to get shop status');
+    }
+    return response.json();
+  },
+
+  toggleShopStatus: async (isOpen: boolean): Promise<{ isOpen: boolean }> => {
+    const response = await authFetch(`${API_URL}/queue/shop-status`, {
+      method: 'POST',
+      body: JSON.stringify({ isOpen }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update shop status');
     }
     return response.json();
   },

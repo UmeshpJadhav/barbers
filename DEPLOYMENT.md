@@ -38,7 +38,10 @@ If you aren't already using a cloud database:
     -   `MONGO_URI`: Your MongoDB connection string.
     -   `JWT_SECRET`: Your secret key.
     -   `PORT`: `10000` (Render default).
-    -   `FRONTEND_URL`: `https://your-vercel-app-name.vercel.app` (You will fill this after Step 4, or set to `*` temporarily).
+    -   `FRONTEND_URL`: `https://your-vercel-app-name.vercel.app`
+    -   `TWILIO_ACCOUNT_SID`: (Optional) For SMS.
+    -   `TWILIO_AUTH_TOKEN`: (Optional) For SMS.
+    -   `TWILIO_PHONE_NUMBER`: (Optional) For SMS (e.g., +1234567890).
 6.  Click **Create Web Service**.
     -   *Note: Render free tier spins down after inactivity, so the first request might take 30-50s.*
 7.  **Copy your Backend URL** (e.g., `https://barbers-api.onrender.com`).

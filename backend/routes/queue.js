@@ -1,5 +1,6 @@
 import express from 'express';
 import Queue from '../models/Queue.js';
+import ShopStatus from '../models/ShopStatus.js';
 import { notifyCustomerTurn, notifyQueueJoined } from '../services/smsService.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -9,6 +10,37 @@ const router = express.Router();
 router.use((req, res, next) => {
   req.io = req.app.get('io');
   next();
+});
+
+// Get Shop Status (Public)
+router.get('/shop-status', async (req, res) => {
+  try {
+    const status = await ShopStatus.getStatus();
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get shop status' });
+  }
+});
+
+// Toggle Shop Status (Protected)
+router.post('/shop-status', authenticate, async (req, res) => {
+  try {
+    const { isOpen } = req.body;
+    let status = await ShopStatus.findOne();
+    if (!status) {
+      status = new ShopStatus({ isOpen });
+    } else {
+      status.isOpen = isOpen;
+    }
+    await status.save();
+
+    // Notify everyone
+    req.io.emit('shopStatusUpdated', { isOpen });
+
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update shop status' });
+  }
 });
 
 // Protect barber-specific routes
@@ -21,14 +53,33 @@ const protectBarberRoutes = (req, res, next) => {
   return authenticate(req, res, next);
 };
 
+// Service Prices
+const PRICES = {
+  'Haircut': 200,
+  'Beard Trim': 100,
+  'Shaving': 150,
+  'Hair Color': 500,
+  'Facial': 800,
+  'Head Massage': 300
+};
+
 // Join the queue
 router.post('/join', async (req, res) => {
   try {
-    const { customerName, phoneNumber } = req.body;
+    console.log('📝 Join Request Body:', req.body);
+    const { customerName, phoneNumber, service } = req.body;
 
-    if (!customerName || !phoneNumber) {
+    if (!customerName || !phoneNumber || !service) {
       return res.status(400).json({
-        error: 'Customer name and phone number are required'
+        error: 'Customer name, phone number, and service are required'
+      });
+    }
+
+    // Check if shop is open
+    const shopStatus = await ShopStatus.getStatus();
+    if (!shopStatus.isOpen) {
+      return res.status(400).json({
+        error: 'The shop is currently closed. Please try again later.'
       });
     }
 
@@ -58,6 +109,8 @@ router.post('/join', async (req, res) => {
     const queueEntry = new Queue({
       customerName,
       phoneNumber,
+      service,
+      price: PRICES[service] || 0,
       queueNumber,
       estimatedWaitTime
     });
@@ -133,10 +186,12 @@ router.get('/stats', async (req, res) => {
       status: { $in: ['waiting', 'serving'] }
     });
 
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
     const servedToday = await Queue.countDocuments({
       status: 'completed',
-      // Optional: Filter by today's date if schema supports it
-      // joinedAt: { $gte: new Date(new Date().setHours(0,0,0,0)) } 
+      updatedAt: { $gte: startOfDay }
     });
 
     const waiting = activeQueue.filter(c => c.status === 'waiting').length;
@@ -149,16 +204,20 @@ router.get('/stats', async (req, res) => {
       queueNumber: c.queueNumber,
       // Mask name: "John Doe" -> "John D."
       name: c.customerName.split(' ').map((n, i) => i === 0 ? n : n[0] + '.').join(' '),
+      service: c.service || 'Haircut',
       status: c.status,
       joinedAt: c.joinedAt
     }));
+
+    const shopStatus = await ShopStatus.getStatus();
 
     res.json({
       waiting,
       avgWait,
       servedToday,
       active: activeQueue.length,
-      currentQueue
+      currentQueue,
+      isOpen: shopStatus.isOpen
     });
   } catch (error) {
     console.error('Error getting queue stats:', error);
@@ -169,9 +228,50 @@ router.get('/stats', async (req, res) => {
 // Get all active queue (for barber dashboard) - Protected
 router.get('/active', authenticate, async (req, res) => {
   try {
-    const activeQueue = await Queue.find({
-      status: { $in: ['waiting', 'serving'] }
-    }).sort({ queueNumber: 1 });
+    const { date } = req.query; // Expect YYYY-MM-DD or undefined
+
+    let startOfDay, endOfDay;
+
+    if (date) {
+      startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+    } else {
+      startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+    }
+
+    // If viewing history (past date), just show completed/cancelled for that day
+    // If viewing today, show waiting/serving + completed today
+    const isToday = !date || new Date().toISOString().split('T')[0] === date;
+
+    let query = {};
+    if (isToday) {
+      query = {
+        $or: [
+          { status: { $in: ['waiting', 'serving'] } },
+          { status: { $in: ['completed', 'cancelled'] }, updatedAt: { $gte: startOfDay, $lte: endOfDay } }
+        ]
+      };
+    } else {
+      query = {
+        createdAt: { $gte: startOfDay, $lte: endOfDay }
+      };
+    }
+
+    const activeQueue = await Queue.find(query).sort({ queueNumber: 1 });
+
+    // Calculate stats
+    const totalEarnings = activeQueue
+      .filter(c => c.status === 'completed')
+      .reduce((sum, c) => sum + (c.price || PRICES[c.service] || 0), 0);
+
+    const servedCount = activeQueue.filter(c => c.status === 'completed').length;
 
     res.json({
       queue: activeQueue.map((entry, index) => ({
@@ -180,10 +280,14 @@ router.get('/active', authenticate, async (req, res) => {
         phoneNumber: entry.phoneNumber,
         position: index + 1,
         status: entry.status,
+        service: entry.service || 'Haircut',
+        price: entry.price || PRICES[entry.service] || 0,
         estimatedWaitTime: entry.estimatedWaitTime,
         joinedAt: entry.joinedAt
       })),
-      total: activeQueue.length
+      total: activeQueue.length,
+      totalEarnings,
+      servedCount
     });
   } catch (error) {
     console.error('Error getting active queue:', error);

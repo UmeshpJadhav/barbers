@@ -11,10 +11,20 @@ const queueSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  queueNumber: {
+  service: {
+    type: String,
+    required: true,
+    enum: ['Haircut', 'Beard Trim', 'Shaving', 'Hair Color', 'Facial', 'Head Massage'],
+    default: 'Haircut'
+  },
+  price: {
     type: Number,
     required: true,
-    unique: true
+    default: 0
+  },
+  queueNumber: {
+    type: Number,
+    required: true
   },
   status: {
     type: String,
@@ -36,14 +46,20 @@ const queueSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Get next queue number
-queueSchema.statics.getNextQueueNumber = async function() {
-  const lastEntry = await this.findOne().sort({ queueNumber: -1 });
-  return lastEntry ? lastEntry.queueNumber + 1 : 1;
+// Get next queue number for TODAY
+queueSchema.statics.getNextQueueNumber = async function () {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const lastEntryToday = await this.findOne({
+    createdAt: { $gte: startOfDay }
+  }).sort({ queueNumber: -1 });
+
+  return lastEntryToday ? lastEntryToday.queueNumber + 1 : 1;
 };
 
 // Get active queue count
-queueSchema.statics.getActiveQueueCount = async function() {
+queueSchema.statics.getActiveQueueCount = async function () {
   return await this.countDocuments({ status: { $in: ['waiting', 'serving'] } });
 };
 

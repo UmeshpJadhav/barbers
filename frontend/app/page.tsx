@@ -11,7 +11,9 @@ import {
   Twitter,
   MapPin,
   Mail,
-  ExternalLink
+  ExternalLink,
+  ChevronDown,
+  Phone
 } from 'lucide-react';
 
 
@@ -46,11 +48,7 @@ const ArrowRight = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const Phone = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-  </svg>
-);
+
 
 const Star = ({ className }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
@@ -118,6 +116,7 @@ export default function CustomerPage() {
   const [view, setView] = useState<'join' | 'position'>('join');
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [service, setService] = useState('Haircut');
   const [positionData, setPositionData] = useState<PositionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -127,13 +126,16 @@ export default function CustomerPage() {
     waiting: number;
     avgWait: number;
     servedToday: number;
-    currentQueue: Array<{ name: string; queueNumber: number; status: string }>;
+    currentQueue: Array<{ name: string; queueNumber: number; status: string; service?: string }>;
+    isShopOpen: boolean;
   }>({
     waiting: 0,
     avgWait: 0,
     servedToday: 0,
-    currentQueue: []
+    currentQueue: [],
+    isShopOpen: true
   });
+  const [isShopOpen, setIsShopOpen] = useState(true);
 
   const checkPositionRef = useRef<(() => Promise<void>) | null>(null);
 
@@ -189,6 +191,11 @@ export default function CustomerPage() {
           checkPositionRef.current();
         }
         updateStats();
+        updateStats();
+      });
+
+      socket.on('shopStatusUpdated', (data: { isOpen: boolean }) => {
+        setIsShopOpen(data.isOpen);
       });
 
       socket.on('disconnect', () => {
@@ -213,7 +220,11 @@ export default function CustomerPage() {
   const updateStats = async () => {
     try {
       const data = await queueAPI.getStats();
-      setStats(data);
+      setStats({
+        ...data,
+        isShopOpen: data.isOpen
+      });
+      setIsShopOpen(data.isOpen);
     } catch (err) {
       console.error('Failed to update stats:', err);
     }
@@ -226,7 +237,7 @@ export default function CustomerPage() {
     setSuccess('');
 
     try {
-      const result = await queueAPI.joinQueue(customerName, phoneNumber);
+      const result = await queueAPI.joinQueue(customerName, phoneNumber, service);
       setSuccess(`Welcome ${customerName}!`);
       setPositionData({
         queueNumber: result.queueNumber,
@@ -301,7 +312,7 @@ export default function CustomerPage() {
             <div className="flex flex-wrap justify-center gap-4 mb-8">
               <Button
                 size="lg"
-                variant="hero"
+                variant="default"
                 className="w-full sm:w-auto h-14 px-8 text-base shadow-xl shadow-amber-200/50 hover:shadow-amber-200/80 hover:-translate-y-0.5 transition-all duration-300"
                 onClick={() => {
                   const el = document.getElementById('join-queue');
@@ -455,121 +466,177 @@ export default function CustomerPage() {
             </Card>
           )}
 
+          {/* Join Queue Form */}
+          <div id="join-queue" className="container mx-auto px-4 pb-12 transition-all duration-300">
+            <Card className="max-w-md mx-auto overflow-hidden shadow-2xl border-0 ring-1 ring-gray-100 bg-white/95 backdrop-blur-xl">
+              {view === 'join' ? (
+                <div className="p-8">
+                  {/* Shop Status Banner */}
+                  {!isShopOpen && (
+                    <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-100 text-center">
+                      <p className="text-red-700 font-bold mb-1">We are currently closed</p>
+                      <p className="text-red-600/80 text-sm">Please come back during opening hours</p>
+                    </div>
+                  )}
+
+                  <div className="text-center mb-8">
+                    <h3 className="text-2xl font-bold bg-gradient-to-r from-gray-900 via-gray-700 to-gray-900 bg-clip-text text-transparent">Get in Line</h3>
+                    <p className="text-gray-500 mt-2 text-sm font-medium">Join us at Prashant Hair Saloon</p>
+                  </div>
+
+                  {isShopOpen ? (
+                    <form onSubmit={handleJoinQueue} className="space-y-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="name" className="text-gray-700 font-semibold ml-1">Your Name</Label>
+                        <Input
+                          id="name"
+                          required
+                          value={customerName}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomerName(e.target.value)}
+                          placeholder="John Doe"
+                          className="h-12 border-gray-200 focus:border-indigo-500 focus:ring-indigo-100 rounded-xl"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="phone" className="text-gray-700 font-semibold ml-1">Phone Number</Label>
+                        <Input
+                          id="phone"
+                          required
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhoneNumber(e.target.value)}
+                          placeholder="98765 43210"
+                          className="h-12 border-gray-200 focus:border-indigo-500 focus:ring-indigo-100 rounded-xl"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="service" className="text-gray-700 font-semibold ml-1">Select Service <span className="text-xs font-normal text-gray-500">(Optional)</span></Label>
+                        <div className="relative">
+                          <select
+                            id="service"
+                            value={service}
+                            onChange={(e) => setService(e.target.value)}
+                            className="w-full h-12 pl-4 pr-10 border border-gray-200 rounded-xl appearance-none focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 bg-white transition-all text-gray-900"
+                          >
+                            {['Haircut', 'Beard Trim', 'Shaving', 'Hair Color', 'Facial', 'Head Massage'].map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none size-5" />
+                        </div>
+                      </div>
+
+                      <Button
+                        type="submit"
+                        className="w-full h-14 text-base font-bold bg-gray-900 hover:bg-gray-800 shadow-xl shadow-gray-200/50 rounded-xl transition-all hover:scale-[1.02]"
+                        disabled={loading}
+                      >
+                        {loading ? (
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <span>Processing...</span>
+                          </div>
+                        ) : 'Join the Queue'}
+                      </Button>
+                    </form>
+                  ) : (
+                    <div className="text-center space-y-4">
+                      <p className="text-gray-500 text-sm">
+                        Check your position if you are already in the queue.
+                      </p>
+                      <div className="space-y-2">
+                        <Input
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhoneNumber(e.target.value)}
+                          placeholder="Enter phone number to check status"
+                          className="h-12 border-gray-200 focus:border-indigo-500 focus:ring-indigo-100 rounded-xl"
+                        />
+                        <Button
+                          type="button"
+                          onClick={checkPosition}
+                          className="w-full h-12 text-base font-bold bg-white text-gray-900 border-2 border-gray-100 hover:border-gray-900 hover:bg-gray-50 rounded-xl transition-all"
+                        >
+                          Check Status
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-8">
+                  <div className="text-center mb-8">
+                    <h3 className="text-2xl font-bold bg-gradient-to-r from-gray-900 via-gray-700 to-gray-900 bg-clip-text text-transparent">Your Position</h3>
+                    <p className="text-gray-500 mt-2 text-sm font-medium">Real-time updates on your queue status</p>
+                  </div>
+                  {/* Position data will be rendered here */}
+                </div>
+              )}
+            </Card>
+          </div>
+
           <Card className="shadow-xl border-none shadow-indigo-100">
             <CardContent className="p-8">
-              <div className="mb-8">
-                <h3 className="text-2xl font-bold mb-2 text-gray-900">Join the Queue</h3>
-                <p className="text-sm text-gray-600">Enter your details to get started</p>
+              <div className="grid grid-cols-2 gap-4 text-center mb-8">
+                <div>
+                  <div className="text-2xl font-bold text-amber-600">{stats.avgWait}m</div>
+                  <div className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wide">Avg Wait</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-amber-600">{stats.servedToday}</div>
+                  <div className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wide">Served Today</div>
+                </div>
               </div>
 
-              <form onSubmit={handleJoinQueue} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-medium text-gray-700">
-                    Your Name
-                  </Label>
-                  <Input
-                    id="name"
-                    placeholder="Enter your full name"
-                    value={customerName}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomerName(e.target.value)}
-                    required
-                    className="h-12 text-base bg-gray-50 border-gray-200 focus:bg-white text-gray-900 transition-colors"
-                  />
-                </div>
+              {/* Live Queue List */}
+              {stats.currentQueue.length > 0 && (
+                <div className="bg-gray-50 rounded-xl p-4 md:p-6">
+                  <h4 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wide">Current Live Queue</h4>
+                  <div className="space-y-3">
+                    {stats.currentQueue.map((c) => (
+                      <div
+                        key={c.queueNumber}
+                        className={`flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border transition-all ${c.status === 'serving'
+                          ? 'bg-amber-50 border-amber-200 shadow-sm'
+                          : 'bg-white border-gray-100'
+                          }`}
+                      >
+                        <div className={`size-8 sm:size-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 shadow-sm ${c.status === 'serving'
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-gray-100 text-gray-500'
+                          }`}>
+                          #{c.queueNumber}
+                        </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
-                    Phone Number
-                  </Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
-                    <Input
-                      id="phone"
-                      type="tel"
-                      placeholder="Enter your phone number"
-                      value={phoneNumber}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhoneNumber(e.target.value)}
-                      required
-                      className="h-12 pl-11 text-base bg-gray-50 border-gray-200 focus:bg-white text-gray-900 placeholder:text-gray-400 transition-colors"
-                    />
-                  </div>
-                </div>
-
-                <Button
-                  type="submit"
-                  size="lg"
-                  disabled={loading}
-                  className="h-14 w-full text-base bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-200"
-                >
-                  {loading ? 'Joining...' : 'Join Queue Now'}
-                  <ArrowRight className="ml-2 size-5 inline" />
-                </Button>
-              </form>
-
-              <div className="mt-8 pt-8 border-t border-gray-100">
-                <div className="grid grid-cols-3 gap-4 text-center mb-8">
-                  <div>
-                    <div className="text-2xl font-bold text-amber-600">{stats.waiting}</div>
-                    <div className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wide">Waiting</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-amber-600">{stats.avgWait}m</div>
-                    <div className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wide">Avg Wait</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-amber-600">{stats.servedToday}</div>
-                    <div className="text-xs text-gray-500 mt-1 font-medium uppercase tracking-wide">Served Today</div>
-                  </div>
-                </div>
-
-                {/* Live Queue List */}
-                {stats.currentQueue.length > 0 && (
-                  <div className="bg-gray-50 rounded-xl p-4 md:p-6">
-                    <h4 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wide">Current Live Queue</h4>
-                    <div className="space-y-3">
-                      {stats.currentQueue.map((c) => (
-                        <div
-                          key={c.queueNumber}
-                          className={`flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border transition-all ${c.status === 'serving'
-                            ? 'bg-amber-50 border-amber-200 shadow-sm'
-                            : 'bg-white border-gray-100'
-                            }`}
-                        >
-                          <div className={`size-8 sm:size-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 shadow-sm ${c.status === 'serving'
-                            ? 'bg-amber-500 text-white'
-                            : 'bg-gray-100 text-gray-500'
-                            }`}>
-                            #{c.queueNumber}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-gray-900 truncate text-sm sm:text-base">
+                            {c.name}
                           </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="font-bold text-gray-900 truncate text-sm sm:text-base">
-                              {c.name}
-                            </div>
-                            <div className="text-xs text-gray-500 font-medium truncate">
-                              {c.status === 'serving' ? 'Started now' : 'Waiting...'}
-                            </div>
-                          </div>
-
-                          <div className="shrink-0 flex items-center gap-1.5">
-                            {c.status === 'serving' ? (
-                              <>
-                                <span className="relative flex h-2.5 w-2.5">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
-                                </span>
-                                <span className="text-xs font-bold text-amber-700 uppercase tracking-wide hidden sm:block">Serving</span>
-                              </>
-                            ) : (
-                              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Waiting</span>
-                            )}
+                          <div className="text-xs text-gray-500 font-medium truncate">
+                            {c.status === 'serving' ? 'Started now' : `Waiting for ${c.service || 'Haircut'}`}
                           </div>
                         </div>
-                      ))}
-                    </div>
+
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          {c.status === 'serving' ? (
+                            <>
+                              <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                              </span>
+                              <span className="text-xs font-bold text-amber-700 uppercase tracking-wide hidden sm:block">Serving</span>
+                            </>
+                          ) : (
+                            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Waiting</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

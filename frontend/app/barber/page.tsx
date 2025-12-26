@@ -107,11 +107,10 @@ const TabsList = ({ children, className = '' }: any) => (
 const TabsTrigger = ({ value, children, activeTab, setActiveTab }: any) => (
   <button
     onClick={() => setActiveTab(value)}
-    className={`px-4 py-2 text-sm font-medium transition-colors ${
-      activeTab === value
-        ? 'border-b-2 border-indigo-600 text-indigo-600'
-        : 'text-gray-600 hover:text-gray-900'
-    }`}
+    className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === value
+      ? 'border-b-2 border-indigo-600 text-indigo-600'
+      : 'text-gray-600 hover:text-gray-900'
+      }`}
   >
     {children}
   </button>
@@ -150,6 +149,12 @@ export default function BarberDashboard() {
   const [actionDialog, setActionDialog] = useState<'call' | 'complete' | 'cancel' | null>(null);
   const [activeTab, setActiveTab] = useState('waiting');
 
+  // New State for Earnings & History
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [totalEarnings, setTotalEarnings] = useState(0);
+  const [servedCount, setServedCount] = useState(0);
+  const [isShopOpen, setIsShopOpen] = useState(true);
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -166,9 +171,9 @@ export default function BarberDashboard() {
   useEffect(() => {
     if (!isAuthenticated) return;
     loadQueue();
-    
+
     const socket = getSocket();
-    
+
     const setupSocket = () => {
       if (socket.connected) {
         setSocketConnected(true);
@@ -184,11 +189,15 @@ export default function BarberDashboard() {
     const setupListeners = () => {
       socket.on('queueUpdated', (data) => {
         console.log('Queue updated:', data);
-        loadQueue();
+        // Only reload if looking at today
+        const today = new Date().toISOString().split('T')[0];
+        if (selectedDate === today) {
+          loadQueue();
+        }
       });
 
       socket.emit('getQueueStatus');
-      
+
       socket.on('queueStatus', (data) => {
         loadQueue();
       });
@@ -210,13 +219,17 @@ export default function BarberDashboard() {
       socket.off('connect');
       socket.off('disconnect');
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, selectedDate]);
 
   const loadQueue = async () => {
     try {
       setLoading(true);
-      const data = await queueAPI.getActiveQueue();
+      const data = await queueAPI.getActiveQueue(selectedDate);
+      const status = await queueAPI.getShopStatus();
+      setIsShopOpen(status.isOpen);
       setQueue(data.queue);
+      setTotalEarnings(data.totalEarnings || 0);
+      setServedCount(data.servedCount || 0);
       setError('');
     } catch (err: any) {
       setError(err.message);
@@ -300,7 +313,7 @@ export default function BarberDashboard() {
   const stats = {
     totalWaiting: waitingCustomers.length,
     customersServedToday: completedCustomers.length,
-    averageWaitTime: waitingCustomers.length > 0 
+    averageWaitTime: waitingCustomers.length > 0
       ? Math.round(waitingCustomers.reduce((sum, c) => sum + c.estimatedWaitTime, 0) / waitingCustomers.length)
       : 0,
   };
@@ -330,14 +343,33 @@ export default function BarberDashboard() {
           <div className="container mx-auto px-6 py-4 w-full max-w-7xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="rounded-xl bg-indigo-100 p-2.5">
-                  <Scissors className="size-6 text-indigo-600" />
+                <div className={`rounded-xl p-2.5 transition-colors ${isShopOpen ? 'bg-indigo-100' : 'bg-red-100'}`}>
+                  <Scissors className={`size-6 ${isShopOpen ? 'text-indigo-600' : 'text-red-500'}`} />
                 </div>
                 <div>
                   <h1 className="text-xl font-bold tracking-tight text-gray-900">
                     {user?.shopName || 'Barbershop Dashboard'}
                   </h1>
-                  <p className="text-xs text-gray-600 font-medium">Admin Console</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-gray-600 font-medium">Admin Console</p>
+                    <span className="text-gray-300">•</span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const newStatus = await queueAPI.toggleShopStatus(!isShopOpen);
+                          setIsShopOpen(newStatus.isOpen);
+                        } catch (err) {
+                          console.error('Failed to toggle status');
+                        }
+                      }}
+                      className={`text-xs font-bold px-2 py-0.5 rounded-full border transition-all ${isShopOpen
+                        ? 'bg-green-50 text-green-700 border-green-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                        : 'bg-red-50 text-red-700 border-red-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200'
+                        }`}
+                    >
+                      {isShopOpen ? 'OPEN' : 'CLOSED'}
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -345,6 +377,14 @@ export default function BarberDashboard() {
                   <div className={`size-1.5 rounded-full ${socketConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
                   <span>{socketConnected ? 'Live' : 'Connecting...'}</span>
                 </Badge>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
                 <Badge variant="outline" className="gap-2">
                   <Clock className="size-3" />
                   <span>{currentTime.toLocaleTimeString()}</span>
@@ -359,12 +399,13 @@ export default function BarberDashboard() {
 
         <div className="container mx-auto px-4 md:px-6 py-4 md:py-8 space-y-6 md:space-y-8 max-w-7xl w-full">
           {/* KPI Cards */}
-          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
             {[
               { label: 'Waiting', val: stats.totalWaiting, icon: Users, desc: 'In Line', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
               { label: 'Active', val: inServiceCustomers.length, icon: Zap, desc: 'Serving', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
-              { label: 'Completed', val: stats.customersServedToday, icon: CheckCircle2, desc: 'Today', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-100' },
+              { label: 'Completed', val: servedCount, icon: CheckCircle2, desc: 'Served', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-100' },
               { label: 'Avg Wait', val: `${stats.averageWaitTime}m`, icon: Clock, desc: 'Estimated', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' },
+              { label: 'Revenue', val: `₹${totalEarnings}`, icon: Zap, desc: 'Total', color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-100' },
             ].map((item, i) => (
               <PremiumCard key={i} className="hover:border-indigo-200 bg-white/80">
                 <div className="p-4 md:p-6">
@@ -410,13 +451,15 @@ export default function BarberDashboard() {
                             {waitingCustomers.map((c, i) => (
                               <div key={c.queueNumber} className="p-5 flex items-center justify-between hover:bg-gray-50 transition-colors group">
                                 <div className="flex items-center gap-4">
-                                  <div className={`size-10 rounded-full flex items-center justify-center font-bold text-sm border ${
-                                    i === 0 ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200' : 'bg-white border-gray-200 text-gray-500'
-                                  }`}>
+                                  <div className={`size-10 rounded-full flex items-center justify-center font-bold text-sm border ${i === 0 ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200' : 'bg-white border-gray-200 text-gray-500'
+                                    }`}>
                                     {c.position}
                                   </div>
                                   <div>
-                                    <div className="font-semibold text-sm text-gray-900">{c.customerName}</div>
+                                    <div className="font-semibold text-sm text-gray-900">
+                                      {c.customerName}
+                                      <span className="ml-2 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{c.service || 'Haircut'}</span>
+                                    </div>
                                     <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
                                       <Phone className="size-3" /> {c.phoneNumber}
                                       <span>•</span>
@@ -467,6 +510,7 @@ export default function BarberDashboard() {
                             <div key={c.queueNumber} className="bg-white border border-gray-200 p-4 rounded-xl flex justify-between items-center shadow-sm">
                               <div>
                                 <span className="font-medium text-gray-900">{c.customerName}</span>
+                                <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{c.service || 'Haircut'}</span>
                                 <p className="text-xs text-gray-500 mt-1">#{c.queueNumber}</p>
                               </div>
                               <div className="flex gap-2">
@@ -493,6 +537,7 @@ export default function BarberDashboard() {
                               <div className="flex items-center gap-3">
                                 <CheckCircle2 className="size-4 text-green-600" />
                                 <span className="font-medium text-sm line-through text-gray-500">{c.customerName}</span>
+                                <span className="text-xs text-gray-400">({c.service || 'Haircut'} - ₹{c.price || 0})</span>
                               </div>
                               <div className="text-xs text-gray-400">Done</div>
                             </div>
