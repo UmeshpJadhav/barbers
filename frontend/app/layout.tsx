@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   description: "Join the queue and get notified when it's your turn",
 };
 
+import { Analytics } from "@vercel/analytics/next";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -32,6 +34,7 @@ export default function RootLayout({
         <AuthProviderWrapper>
           {children}
         </AuthProviderWrapper>
+        <Analytics />
       </body>
     </html>
   );
