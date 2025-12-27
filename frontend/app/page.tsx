@@ -13,7 +13,8 @@ import {
   Mail,
   ExternalLink,
   ChevronDown,
-  Phone
+  Phone,
+  Check
 } from 'lucide-react';
 
 
@@ -88,7 +89,7 @@ const Input = ({ id, type = 'text', placeholder, value, onChange, required, clas
     value={value}
     onChange={onChange}
     required={required}
-    className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all ${className}`}
+    className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-gray-900 bg-white placeholder:text-gray-400 ${className}`}
   />
 );
 
@@ -116,7 +117,7 @@ export default function CustomerPage() {
   const [view, setView] = useState<'join' | 'position'>('join');
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [service, setService] = useState('Haircut');
+  const [service, setService] = useState<string[]>(['Haircut']);
   const [positionData, setPositionData] = useState<PositionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -545,21 +546,55 @@ export default function CustomerPage() {
                         />
                       </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="service" className="text-gray-700 font-semibold ml-1">Select Service <span className="text-xs font-normal text-gray-500">(Optional)</span></Label>
-                        <div className="relative">
-                          <select
-                            id="service"
-                            value={service}
-                            onChange={(e) => setService(e.target.value)}
-                            className="w-full h-12 pl-4 pr-10 border border-gray-200 rounded-xl appearance-none focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 bg-white transition-all text-gray-900"
-                          >
-                            {['Haircut', 'Beard Trim', 'Shaving', 'Hair Color', 'Facial', 'Head Massage'].map(s => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
-                          </select>
-                          <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none size-5" />
+                      <div className="space-y-3">
+                        <Label htmlFor="services" className="text-gray-700 font-semibold ml-1">Select Services</Label>
+                        <div className="space-y-2 sm:space-y-3">
+                          {[
+                            { name: 'Haircut', price: '₹100', time: '30m' },
+                            { name: 'Beard', price: '₹60', time: '15m' },
+                            { name: 'Clean-up', price: '₹200', time: '20m' },
+                            { name: 'Head massage', price: '₹60', time: '15m' },
+                            { name: 'Facial normal', price: '₹300', time: '30m' },
+                            { name: 'Ladies haircut', price: '₹250', time: '40m' },
+                            { name: 'Traement facial', price: '₹500', time: '45m' },
+                          ].map((s) => {
+                            const isSelected = service.includes(s.name);
+                            return (
+                              <div
+                                key={s.name}
+                                onClick={() => {
+                                  const newServices = isSelected
+                                    ? service.filter((i: string) => i !== s.name)
+                                    : [...service, s.name];
+                                  setService(newServices.length ? newServices : []);
+                                }}
+                                className={`group relative flex items-center justify-between p-3 sm:p-4 rounded-xl border transition-all cursor-pointer hover:shadow-md active:scale-[0.99] ${isSelected
+                                  ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600 shadow-sm'
+                                  : 'border-gray-100 bg-white hover:border-indigo-200 hover:bg-gray-50'
+                                  }`}
+                              >
+                                <div className="flex items-center gap-3 sm:gap-4">
+                                  <div className={`flex items-center justify-center size-8 sm:size-10 rounded-full transition-colors shrink-0 ${isSelected ? 'bg-indigo-100/80 text-indigo-600' : 'bg-gray-100 text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-500'}`}>
+                                    {isSelected ? <Check className="size-4 sm:size-5" /> : <Scissors className="size-4 sm:size-5" />}
+                                  </div>
+                                  <div className="text-left">
+                                    <div className={`font-bold text-sm sm:text-base ${isSelected ? 'text-indigo-900' : 'text-gray-900'}`}>{s.name}</div>
+                                    <div className="text-xs text-gray-500 font-medium">Duration: {s.time}</div>
+                                  </div>
+                                </div>
+
+                                <div className="text-right">
+                                  <div className={`font-bold text-sm sm:text-base ${isSelected ? 'text-indigo-700' : 'text-gray-900'}`}>{s.price}</div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
+                        {service.length === 0 && (
+                          <p className="text-sm text-center text-red-500 font-medium bg-red-50 py-2 rounded-lg animate-pulse">
+                            Please select at least one service to continue
+                          </p>
+                        )}
                       </div>
 
                       <Button
@@ -685,12 +720,12 @@ export default function CustomerPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              { title: 'Classic Cut', price: '₹499', time: '30 min', desc: 'Precision cuts tailored to your style.' },
-              { title: 'Fade + Beard', price: '₹699', time: '45 min', desc: 'Clean fades with detailed beard work.' },
-              { title: 'Kids Cut', price: '₹399', time: '25 min', desc: 'Gentle, patient styling for kids.' },
-              { title: 'Color & Styling', price: '₹1299', time: '60 min', desc: 'Professional color with protective care.' },
-              { title: 'Hot Towel Shave', price: '₹549', time: '30 min', desc: 'Relaxing shave with hot towel finish.' },
-              { title: 'Facial & Grooming', price: '₹999', time: '50 min', desc: 'Deep cleanse, massage, and glow.' },
+              { title: 'Haircut', price: '₹100', time: '30 min', desc: 'Precision cuts tailored to your style.' },
+              { title: 'Beard', price: '₹60', time: '15 min', desc: 'Expert beard shaping and trimming.' },
+              { title: 'Clean-up', price: '₹200', time: '20 min', desc: 'Quick facial refresh and cleansing.' },
+              { title: 'Ladies Haircut', price: '₹250', time: '40 min', desc: 'Professional styling for women.' },
+              { title: 'Facial Normal', price: '₹300', time: '30 min', desc: 'Standard facial for glowing skin.' },
+              { title: 'Treatment Facial', price: '₹500', time: '45 min', desc: 'Advanced skin treatment and care.' },
             ].map((item) => (
               <div key={item.title} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow-md transition-all">
                 <div className="flex items-center justify-between mb-2">

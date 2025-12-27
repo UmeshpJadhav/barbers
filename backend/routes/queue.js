@@ -54,24 +54,32 @@ const protectBarberRoutes = (req, res, next) => {
 };
 
 // Service Prices
-const PRICES = {
-  'Haircut': 200,
-  'Beard Trim': 100,
-  'Shaving': 150,
-  'Hair Color': 500,
-  'Facial': 800,
-  'Head Massage': 300
+// Service Details (Price in INR, Time in Minutes)
+const SERVICES = {
+  'Haircut': { price: 100, time: 30 },
+  'Beard': { price: 60, time: 15 },
+  'Clean-up': { price: 200, time: 20 },
+  'Facial normal': { price: 300, time: 30 },
+  'Traement facial': { price: 500, time: 45 },
+  'Head massage': { price: 60, time: 15 },
+  'Ladies haircut': { price: 250, time: 40 }
 };
 
 // Join the queue
 router.post('/join', async (req, res) => {
   try {
     console.log('📝 Join Request Body:', req.body);
-    const { customerName, phoneNumber, service } = req.body;
+    // Support both 'service' (legacy) and 'services' (new)
+    let { customerName, phoneNumber, services, service } = req.body;
 
-    if (!customerName || !phoneNumber || !service) {
+    // Normalize to array
+    if (!services && service) {
+      services = Array.isArray(service) ? service : [service];
+    }
+
+    if (!customerName || !phoneNumber || !services || services.length === 0) {
       return res.status(400).json({
-        error: 'Customer name, phone number, and service are required'
+        error: 'Customer name, phone number, and at least one service are required'
       });
     }
 
@@ -101,28 +109,64 @@ router.post('/join', async (req, res) => {
     }
 
     const queueNumber = await Queue.getNextQueueNumber();
-    const activeCount = await Queue.getActiveQueueCount();
 
-    // Estimate wait time (assuming 15 minutes per customer)
-    const estimatedWaitTime = activeCount * 15;
+    // Calculate total price and own service time
+    let totalPrice = 0;
+    let myServiceTime = 0;
+
+    services.forEach(s => {
+      const details = SERVICES[s];
+      if (details) {
+        totalPrice += details.price;
+        myServiceTime += details.time;
+      }
+    });
+
+    // Estimate wait time: Sum of estimatedWaitTime of all people ahead + active serving time?
+    // Simplified: Sum of (avg time) * (people ahead). 
+    // Better: We can store 'estimatedServiceTime' on each entry.
+    // For now, let's stick to the previous simple logic but refine it:
+    // Existing active count * average service time (e.g. 25 mins).
+    // OR: Sum of 'estimatedServiceTime' of all waiting/serving customers.
+    // Let's retrieve all active customers to sum their times.
+    const activeCustomers = await Queue.find({ status: { $in: ['waiting', 'serving'] } });
+
+    // Calculate wait time based on what others are getting done
+    // If we don't have stored times for old entries, assume 20 mins.
+    // For new entries, we can sum their service times.
+    // Since we didn't store 'serviceTime' explicitly before, let's just use a heuristic or calculate it if possible.
+    // Actually, let's just use the count * 20 for simplicity to avoid breaking changes, 
+    // OR if we want to be smart:
+    // estimatedWaitTime = sum(active_customers.services.time)
+
+    // Let's do a robust calculation:
+    let estimatedWaitTime = 0;
+    activeCustomers.forEach(c => {
+      // If c.service is array (new), sum it. If string (old), lookup.
+      if (Array.isArray(c.service)) {
+        c.service.forEach(s => estimatedWaitTime += (SERVICES[s]?.time || 20));
+      } else {
+        estimatedWaitTime += (SERVICES[c.service]?.time || 20); // Fallback for old/unknown
+      }
+    });
 
     const queueEntry = new Queue({
       customerName,
       phoneNumber,
-      service,
-      price: PRICES[service] || 0,
+      service: services, // Save as array
+      price: totalPrice,
       queueNumber,
       estimatedWaitTime
     });
 
     await queueEntry.save();
 
-    // Send SMS notification (optional)
+    // Send SMS notification
     await notifyQueueJoined(
       customerName,
       phoneNumber,
       queueEntry.queueNumber,
-      activeCount + 1,
+      activeCustomers.length + 1,
       estimatedWaitTime
     );
 
@@ -136,7 +180,7 @@ router.post('/join', async (req, res) => {
     res.status(201).json({
       message: 'Successfully joined the queue',
       queueNumber: queueEntry.queueNumber,
-      position: activeCount + 1,
+      position: activeCustomers.length + 1,
       estimatedWaitTime: queueEntry.estimatedWaitTime
     });
   } catch (error) {
@@ -204,7 +248,7 @@ router.get('/stats', async (req, res) => {
       queueNumber: c.queueNumber,
       // Mask name: "John Doe" -> "John D."
       name: c.customerName.split(' ').map((n, i) => i === 0 ? n : n[0] + '.').join(' '),
-      service: c.service || 'Haircut',
+      service: Array.isArray(c.service) ? c.service.join(', ') : (c.service || 'Haircut'),
       status: c.status,
       joinedAt: c.joinedAt
     }));
@@ -280,8 +324,9 @@ router.get('/active', authenticate, async (req, res) => {
         phoneNumber: entry.phoneNumber,
         position: index + 1,
         status: entry.status,
-        service: entry.service || 'Haircut',
-        price: entry.price || PRICES[entry.service] || 0,
+        status: entry.status,
+        service: Array.isArray(entry.service) ? entry.service.join(', ') : (entry.service || 'Haircut'),
+        price: entry.price || 0,
         estimatedWaitTime: entry.estimatedWaitTime,
         joinedAt: entry.joinedAt
       })),

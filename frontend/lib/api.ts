@@ -55,13 +55,13 @@ export interface PositionResponse {
 }
 
 export const queueAPI = {
-  joinQueue: async (customerName: string, phoneNumber: string, service: string): Promise<QueueResponse> => {
+  joinQueue: async (customerName: string, phoneNumber: string, services: string[]): Promise<QueueResponse> => {
     const response = await fetch(`${API_URL}/queue/join`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ customerName, phoneNumber, service }),
+      body: JSON.stringify({ customerName, phoneNumber, services }),
     });
 
     if (!response.ok) {

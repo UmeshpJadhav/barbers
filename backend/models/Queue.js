@@ -12,10 +12,14 @@ const queueSchema = new mongoose.Schema({
     trim: true
   },
   service: {
-    type: String,
+    type: [String],
     required: true,
-    enum: ['Haircut', 'Beard Trim', 'Shaving', 'Hair Color', 'Facial', 'Head Massage'],
-    default: 'Haircut'
+    validate: {
+      validator: function (v) {
+        return v && v.length > 0;
+      },
+      message: 'At least one service is required'
+    }
   },
   price: {
     type: Number,
