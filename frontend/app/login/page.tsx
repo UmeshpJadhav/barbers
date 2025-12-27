@@ -8,11 +8,11 @@ export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   // Login form
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
+
   // Register form
   const [username, setUsername] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
@@ -124,6 +124,7 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
 
+            {/* Registration Disabled
             <div className="text-center">
               <button
                 type="button"
@@ -136,6 +137,7 @@ export default function LoginPage() {
                 Don't have an account? Register
               </button>
             </div>
+            */}
           </form>
         ) : (
           <form onSubmit={handleRegister} className="space-y-6">
