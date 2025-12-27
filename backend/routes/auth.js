@@ -6,6 +6,9 @@ const router = express.Router();
 
 // Register new barber
 router.post('/register', async (req, res) => {
+  return res.status(403).json({ error: 'Registration is currently disabled for security reasons.' });
+
+  /* Registration Disabled
   try {
     const { username, email, password, shopName, phoneNumber } = req.body;
 
@@ -63,6 +66,7 @@ router.post('/register', async (req, res) => {
     console.error('Registration error:', error);
     res.status(500).json({ error: 'Failed to register user' });
   }
+  */
 });
 
 // Login
@@ -72,8 +76,8 @@ router.post('/login', async (req, res) => {
 
     // Validation
     if (!email || !password) {
-      return res.status(400).json({ 
-        error: 'Email and password are required' 
+      return res.status(400).json({
+        error: 'Email and password are required'
       });
     }
 
