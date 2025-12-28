@@ -42,8 +42,21 @@ mongoose.connect(MONGODB_URI, {
   serverSelectionTimeoutMS: 5000, // Fail after 5s if DB unreachable
   socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
 })
-  .then(() => {
+  .then(async () => {
     console.log('✅ Connected to MongoDB');
+
+    // Fix: Drop duplicate index on queueNumber if it exists
+    // This was causing "E11000 duplicate key error" preventing queue reset
+    try {
+      const Queue = mongoose.model('Queue');
+      await Queue.collection.dropIndex('queueNumber_1');
+      console.log('🔧 Fixed: Dropped incorrect unique index on queueNumber');
+    } catch (err) {
+      // Ignore error if index doesn't exist
+      if (err.code !== 27) {
+        console.log('ℹ️ Index check:', err.message);
+      }
+    }
   })
   .catch((error) => {
     console.error('❌ MongoDB connection error:', error);
