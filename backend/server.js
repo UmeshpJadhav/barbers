@@ -38,7 +38,10 @@ app.set('io', io); // Make io available to routes
 
 // Connect to MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/barbershop';
-mongoose.connect(MONGODB_URI)
+mongoose.connect(MONGODB_URI, {
+  serverSelectionTimeoutMS: 5000, // Fail after 5s if DB unreachable
+  socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+})
   .then(() => {
     console.log('✅ Connected to MongoDB');
   })
