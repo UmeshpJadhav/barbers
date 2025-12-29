@@ -23,6 +23,8 @@ const authFetch = async (url: string, options: RequestInit = {}) => {
   return fetch(url, {
     ...options,
     headers,
+    cache: 'no-store', // Next.js specific: force dynamic fetch
+    next: { revalidate: 0 } // Next.js 13+ revalidation
   });
 };
 
@@ -61,6 +63,8 @@ export const queueAPI = {
       headers: {
         'Content-Type': 'application/json',
       },
+      cache: 'no-store',
+      next: { revalidate: 0 },
       body: JSON.stringify({ customerName, phoneNumber, services }),
     });
 
@@ -73,7 +77,10 @@ export const queueAPI = {
   },
 
   getPosition: async (phoneNumber: string): Promise<PositionResponse> => {
-    const response = await fetch(`${API_URL}/queue/position/${phoneNumber}`);
+    const response = await fetch(`${API_URL}/queue/position/${phoneNumber}`, {
+      cache: 'no-store',
+      next: { revalidate: 0 }
+    });
 
     if (!response.ok) {
       const error = await response.json();
@@ -98,7 +105,10 @@ export const queueAPI = {
   },
 
   getStats: async (): Promise<{ waiting: number; avgWait: number; servedToday: number; currentQueue: Array<{ name: string; queueNumber: number; status: string; service?: string }>; isOpen: boolean }> => {
-    const response = await fetch(`${API_URL}/queue/stats`);
+    const response = await fetch(`${API_URL}/queue/stats`, {
+      cache: 'no-store',
+      next: { revalidate: 0 }
+    });
     if (!response.ok) {
       throw new Error('Failed to fetch queue stats');
     }
@@ -106,7 +116,10 @@ export const queueAPI = {
   },
 
   getShopStatus: async (): Promise<{ isOpen: boolean }> => {
-    const response = await fetch(`${API_URL}/queue/shop-status`);
+    const response = await fetch(`${API_URL}/queue/shop-status`, {
+      cache: 'no-store',
+      next: { revalidate: 0 }
+    });
     if (!response.ok) {
       throw new Error('Failed to get shop status');
     }
@@ -154,6 +167,8 @@ export const queueAPI = {
   cancelQueue: async (phoneNumber: string): Promise<void> => {
     const response = await fetch(`${API_URL}/queue/cancel/${phoneNumber}`, {
       method: 'DELETE',
+      cache: 'no-store', // Also prevent cache here
+      next: { revalidate: 0 }
     });
 
     if (!response.ok) {

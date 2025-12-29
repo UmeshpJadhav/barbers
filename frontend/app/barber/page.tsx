@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 // import { motion } from 'framer-motion'; // Will be available after npm install
 import { queueAPI, QueueEntry } from '../../lib/api';
@@ -155,6 +155,14 @@ export default function BarberDashboard() {
   const [servedCount, setServedCount] = useState(0);
   const [isShopOpen, setIsShopOpen] = useState(true);
 
+  // Ref to track selectedCustomer inside socket listeners (avoids stale closures)
+  const selectedCustomerRef = useRef<QueueEntry | null>(null);
+
+  // Update ref whenever state changes
+  useEffect(() => {
+    selectedCustomerRef.current = selectedCustomer;
+  }, [selectedCustomer]);
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -189,10 +197,35 @@ export default function BarberDashboard() {
     const setupListeners = () => {
       socket.on('queueUpdated', (data) => {
         console.log('Queue updated:', data);
-        // Only reload if looking at today
         const today = new Date().toISOString().split('T')[0];
         if (selectedDate === today) {
           loadQueue();
+
+          // Fix: Close modal if selected customer status changed remotely
+          // Fix: Use ref to avoid stale closure
+          const currentSelection = selectedCustomerRef.current;
+          if (currentSelection) {
+            // Fix: Check event payload directly since data.queue is not sent in update events
+            if (data.queueNumber === currentSelection.queueNumber) {
+              const newStatus = data.status;
+
+              // If we are calling them, but they are no longer waiting -> Close
+              if (actionDialog === 'call' && newStatus && newStatus !== 'waiting') {
+                setActionDialog(null);
+                setSelectedCustomer(null);
+              }
+              // If we are completing them, but they are no longer serving -> Close
+              else if (actionDialog === 'complete' && newStatus && newStatus !== 'serving') {
+                setActionDialog(null);
+                setSelectedCustomer(null);
+              }
+              // If they are completed or cancelled remotely -> Always Close
+              else if (newStatus === 'completed' || newStatus === 'cancelled') {
+                setActionDialog(null);
+                setSelectedCustomer(null);
+              }
+            }
+          }
         }
       });
 
@@ -251,15 +284,22 @@ export default function BarberDashboard() {
     }
   };
 
+  const [processing, setProcessing] = useState(false);
+
   const confirmCallNext = async () => {
     if (!selectedCustomer) return;
     try {
+      setProcessing(true);
       await queueAPI.markServing(selectedCustomer.queueNumber);
       await loadQueue();
       setActionDialog(null);
       setSelectedCustomer(null);
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setActionDialog(null);
+      setSelectedCustomer(null);
+      setProcessing(false);
     }
   };
 
@@ -275,12 +315,15 @@ export default function BarberDashboard() {
   const confirmComplete = async () => {
     if (!selectedCustomer) return;
     try {
+      setProcessing(true);
       await queueAPI.markComplete(selectedCustomer.queueNumber);
       await loadQueue();
       setActionDialog(null);
       setSelectedCustomer(null);
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -292,12 +335,15 @@ export default function BarberDashboard() {
   const confirmCancel = async () => {
     if (!selectedCustomer) return;
     try {
+      setProcessing(true);
       await queueAPI.cancelQueue(selectedCustomer.phoneNumber);
       await loadQueue();
       setActionDialog(null);
       setSelectedCustomer(null);
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -398,6 +444,22 @@ export default function BarberDashboard() {
         </div>
 
         <div className="container mx-auto px-4 md:px-6 py-4 md:py-8 space-y-6 md:space-y-8 max-w-7xl w-full">
+          {/* Error Alert */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-2">
+                <XCircle className="size-5" />
+                <span className="text-sm font-medium">{error}</span>
+              </div>
+              <button
+                onClick={() => setError('')}
+                className="text-red-500 hover:text-red-700 hover:bg-red-100 p-1 rounded-lg transition-colors"
+              >
+                <XCircle className="size-4" />
+              </button>
+            </div>
+          )}
+
           {/* KPI Cards */}
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
             {[
@@ -458,7 +520,7 @@ export default function BarberDashboard() {
                                   <div>
                                     <div className="font-semibold text-sm text-gray-900">
                                       {c.customerName}
-                                      <span className="ml-2 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{c.service || 'Haircut'}</span>
+                                      <span className="ml-2 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{Array.isArray(c.service) ? c.service.join(', ') : (c.service || 'Haircut')}</span>
                                     </div>
                                     <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
                                       <Phone className="size-3" /> {c.phoneNumber}
@@ -468,15 +530,13 @@ export default function BarberDashboard() {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  {i === 0 && (
-                                    <Button
-                                      onClick={() => handleMarkServing(c.queueNumber)}
-                                      size="sm"
-                                      className="bg-indigo-600 text-white hover:bg-indigo-700"
-                                    >
-                                      Start Serving
-                                    </Button>
-                                  )}
+                                  <Button
+                                    onClick={() => handleMarkServing(c.queueNumber)}
+                                    size="sm"
+                                    className="bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    Start Serving
+                                  </Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"
@@ -510,7 +570,7 @@ export default function BarberDashboard() {
                             <div key={c.queueNumber} className="bg-white border border-gray-200 p-4 rounded-xl flex justify-between items-center shadow-sm">
                               <div>
                                 <span className="font-medium text-gray-900">{c.customerName}</span>
-                                <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{c.service || 'Haircut'}</span>
+                                <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{Array.isArray(c.service) ? c.service.join(', ') : (c.service || 'Haircut')}</span>
                                 <p className="text-xs text-gray-500 mt-1">#{c.queueNumber}</p>
                               </div>
                               <div className="flex gap-2">
@@ -537,7 +597,7 @@ export default function BarberDashboard() {
                               <div className="flex items-center gap-3">
                                 <CheckCircle2 className="size-4 text-green-600" />
                                 <span className="font-medium text-sm line-through text-gray-500">{c.customerName}</span>
-                                <span className="text-xs text-gray-400">({c.service || 'Haircut'} - ₹{c.price || 0})</span>
+                                <span className="text-xs text-gray-400">({Array.isArray(c.service) ? c.service.join(', ') : (c.service || 'Haircut')} - ₹{c.price || 0})</span>
                               </div>
                               <div className="text-xs text-gray-400">Done</div>
                             </div>
@@ -567,8 +627,15 @@ export default function BarberDashboard() {
             <p className="text-gray-500 mt-1">Ticket #{selectedCustomer?.queueNumber}</p>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setActionDialog(null)}>Cancel</Button>
-            <Button onClick={confirmCallNext} className="bg-indigo-600 text-white hover:bg-indigo-700">Confirm Call</Button>
+            <Button variant="ghost" onClick={() => setActionDialog(null)} disabled={processing}>Cancel</Button>
+            <Button onClick={confirmCallNext} className="bg-indigo-600 text-white hover:bg-indigo-700" disabled={processing}>
+              {processing ? (
+                <>
+                  <div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                  Calling...
+                </>
+              ) : 'Confirm Call'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -580,8 +647,10 @@ export default function BarberDashboard() {
           </DialogHeader>
           <div className="py-4 text-gray-600">Mark {selectedCustomer?.customerName} as done?</div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setActionDialog(null)}>Cancel</Button>
-            <Button onClick={confirmComplete} className="bg-green-600 text-white hover:bg-green-700">Complete</Button>
+            <Button variant="ghost" onClick={() => setActionDialog(null)} disabled={processing}>Cancel</Button>
+            <Button onClick={confirmComplete} className="bg-green-600 text-white hover:bg-green-700" disabled={processing}>
+              {processing ? 'Saving...' : 'Complete'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -593,8 +662,10 @@ export default function BarberDashboard() {
           </DialogHeader>
           <div className="py-4 text-red-600">This action cannot be undone.</div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setActionDialog(null)}>Back</Button>
-            <Button variant="destructive" onClick={confirmCancel}>Cancel Booking</Button>
+            <Button variant="ghost" onClick={() => setActionDialog(null)} disabled={processing}>Back</Button>
+            <Button variant="destructive" onClick={confirmCancel} disabled={processing}>
+              {processing ? 'Cancelling...' : 'Cancel Booking'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

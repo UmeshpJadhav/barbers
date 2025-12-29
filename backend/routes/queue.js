@@ -244,14 +244,23 @@ router.get('/stats', async (req, res) => {
       : 0;
 
     // Create a sanitized list for public display
-    const currentQueue = activeQueue.map(c => ({
+    // Create a sanitized list for public display, removing duplicates
+    const uniqueQueueMap = new Map();
+    activeQueue.forEach(c => {
+      // If duplicate exists, keep the one created earlier (or later, depending on consistent sort)
+      if (!uniqueQueueMap.has(c.queueNumber)) {
+        uniqueQueueMap.set(c.queueNumber, c);
+      }
+    });
+
+    const currentQueue = Array.from(uniqueQueueMap.values()).map(c => ({
       queueNumber: c.queueNumber,
       // Mask name: "John Doe" -> "John D."
       name: c.customerName.split(' ').map((n, i) => i === 0 ? n : n[0] + '.').join(' '),
       service: Array.isArray(c.service) ? c.service.join(', ') : (c.service || 'Haircut'),
       status: c.status,
       joinedAt: c.joinedAt
-    }));
+    })).sort((a, b) => a.queueNumber - b.queueNumber);
 
     const shopStatus = await ShopStatus.getStatus();
 
@@ -354,18 +363,24 @@ router.patch('/serving/:queueNumber', authenticate, async (req, res) => {
     customer.status = 'serving';
     await customer.save();
 
-    // Send SMS notification to customer
-    await notifyCustomerTurn(
-      customer.customerName,
-      customer.phoneNumber,
-      customer.queueNumber
-    );
+    // Send SMS notification to customer (Non-blocking)
+    try {
+      await notifyCustomerTurn(
+        customer.customerName,
+        customer.phoneNumber,
+        customer.queueNumber
+      );
+    } catch (smsError) {
+      console.error('Failed to send turn notification:', smsError.message);
+      // Continue execution - don't fail the request
+    }
 
     // Emit socket event
     req.io.emit('queueUpdated', {
       action: 'serving',
       queueNumber: customer.queueNumber,
-      customerName: customer.customerName
+      customerName: customer.customerName,
+      status: 'serving'
     });
 
     res.json({
@@ -374,7 +389,7 @@ router.patch('/serving/:queueNumber', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('Error marking as serving:', error);
-    res.status(500).json({ error: 'Failed to update status' });
+    res.status(500).json({ error: error.message || 'Failed to update status' });
   }
 });
 
@@ -397,7 +412,8 @@ router.patch('/complete/:queueNumber', authenticate, async (req, res) => {
     req.io.emit('queueUpdated', {
       action: 'completed',
       queueNumber: customer.queueNumber,
-      customerName: customer.customerName
+      customerName: customer.customerName,
+      status: 'completed'
     });
 
     // Update estimated wait times for remaining customers
