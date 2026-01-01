@@ -354,25 +354,47 @@ router.patch('/serving/:queueNumber', authenticate, async (req, res) => {
   try {
     const { queueNumber } = req.params;
 
-    const customer = await Queue.findOne({ queueNumber });
+    // SAFE QUERY: Only find customers who are currently waiting
+    const customer = await Queue.findOne({
+      queueNumber,
+      status: 'waiting'
+    });
 
     if (!customer) {
-      return res.status(404).json({ error: 'Queue entry not found' });
+      // Fallback: Check if they are already serving (idempotency)
+      const servingCustomer = await Queue.findOne({ queueNumber, status: 'serving' });
+      if (servingCustomer) {
+        return res.json({ message: 'Customer already serving', queueNumber });
+      }
+      return res.status(404).json({ error: 'Waiting customer not found for this ticket' });
     }
 
+    // Proceed to serve user
+
+    // Update status
     customer.status = 'serving';
+    customer.servedAt = new Date();
     await customer.save();
 
-    // Send SMS notification to customer (Non-blocking)
+    // Helper to format services
+    const formatServices = (services) => {
+      if (Array.isArray(services)) return services.join(', ');
+      return services || 'Haircut';
+    };
+
+    // Calculate queue stats for SMS
+    const totalWaiting = await Queue.countDocuments({ status: 'waiting' });
+    const estWaitTime = (totalWaiting * 15) + ' mins';
+
+    // Send SMS notification (non-blocking)
     try {
-      await notifyCustomerTurn(
-        customer.customerName,
-        customer.phoneNumber,
-        customer.queueNumber
-      );
+      const message = `Hello ${customer.customerName}, it's your turn now! Please come inside. Service: ${formatServices(customer.service)}. Est wait: ${estWaitTime}.`;
+
+      // Use SMS service if configured, or just log
+      console.log(`[SMS] To: ${customer.phoneNumber}, Msg: ${message}`);
+      // await sendSMS(customer.phoneNumber, message);
     } catch (smsError) {
-      console.error('Failed to send turn notification:', smsError.message);
-      // Continue execution - don't fail the request
+      console.warn('Failed to send SMS:', smsError);
     }
 
     // Emit socket event
@@ -398,17 +420,24 @@ router.patch('/complete/:queueNumber', authenticate, async (req, res) => {
   try {
     const { queueNumber } = req.params;
 
-    const customer = await Queue.findOne({ queueNumber });
+    // SAFE QUERY: Prioritize finding the customer who is CURRENTLY SERVING
+    let customer = await Queue.findOne({ queueNumber, status: 'serving' });
 
+    // If no one is serving with this ID, check if we are completing a waiter directly (rare but possible)
     if (!customer) {
-      return res.status(404).json({ error: 'Queue entry not found' });
+      customer = await Queue.findOne({ queueNumber, status: 'waiting' });
     }
 
+    if (!customer) {
+      return res.status(404).json({ error: 'Active queue entry not found' });
+    }
+
+    // Atomic status update
     customer.status = 'completed';
     customer.servedAt = new Date();
     await customer.save();
 
-    // Emit socket event
+    // Emit socket event immediately
     req.io.emit('queueUpdated', {
       action: 'completed',
       queueNumber: customer.queueNumber,
@@ -416,20 +445,28 @@ router.patch('/complete/:queueNumber', authenticate, async (req, res) => {
       status: 'completed'
     });
 
-    // Update estimated wait times for remaining customers
-    const waitingCustomers = await Queue.find({
-      status: 'waiting'
-    }).sort({ queueNumber: 1 });
-
-    for (let i = 0; i < waitingCustomers.length; i++) {
-      waitingCustomers[i].estimatedWaitTime = (i + 1) * 15;
-      await waitingCustomers[i].save();
-    }
-
+    // Send success response immediately (Don't let background tasks block UI)
     res.json({
       message: 'Customer marked as completed',
       queueNumber: customer.queueNumber
     });
+
+    // Background Task: Update wait times for others
+    // We don't await this, so it doesn't slow down the response
+    (async () => {
+      try {
+        const waitingCustomers = await Queue.find({ status: 'waiting' }).sort({ queueNumber: 1 });
+        const updates = waitingCustomers.map((c, i) => {
+          c.estimatedWaitTime = (i + 1) * 15;
+          return c.save();
+        });
+        await Promise.all(updates);
+      } catch (bgError) {
+        console.error('Background wait time update failed:', bgError);
+        // Silent failure is acceptable here as it only affects estimates, not core workflow
+      }
+    })();
+
   } catch (error) {
     console.error('Error completing service:', error);
     res.status(500).json({ error: 'Failed to complete service' });

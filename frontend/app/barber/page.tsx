@@ -277,9 +277,28 @@ export default function BarberDashboard() {
 
   const handleMarkServing = async (queueNumber: number) => {
     try {
-      setSelectedCustomer(queue.find(c => c.queueNumber === queueNumber) || null);
-      setActionDialog('call');
+      console.log('Click handling for Queue #', queueNumber);
+
+      // Strict Search: Find the customer in the WAITING list specifically
+      const customer = queue.find(c => c.queueNumber === queueNumber && c.status === 'waiting');
+
+      console.log('Found customer:', customer);
+
+      if (customer) {
+        setSelectedCustomer(customer);
+        setActionDialog('call');
+      } else {
+        console.warn('Customer not found in waiting list for ID:', queueNumber);
+        // Fallback: try finding ANY customer with that ID just in case
+        const anyCustomer = queue.find(c => c.queueNumber === queueNumber);
+        if (anyCustomer) {
+          console.log('Fallback found:', anyCustomer);
+          setSelectedCustomer(anyCustomer);
+          setActionDialog('call');
+        }
+      }
     } catch (err: any) {
+      console.error('Error in handleMarkServing:', err);
       setError(err.message);
     }
   };
@@ -305,7 +324,16 @@ export default function BarberDashboard() {
 
   const handleCompleteService = async (queueNumber: number) => {
     try {
-      setSelectedCustomer(queue.find(c => c.queueNumber === queueNumber) || null);
+      // STRICT SEARCH: We only want to complete the person who is currently SERVING.
+      const servingCustomer = queue.find(c => c.queueNumber === queueNumber && c.status === 'serving');
+
+      if (servingCustomer) {
+        setSelectedCustomer(servingCustomer);
+      } else {
+        // Fallback (just in case logic mismatch): find anyone with that ID
+        console.warn('No serving customer found for ID', queueNumber);
+        setSelectedCustomer(queue.find(c => c.queueNumber === queueNumber) || null);
+      }
       setActionDialog('complete');
     } catch (err: any) {
       setError(err.message);
@@ -614,7 +642,12 @@ export default function BarberDashboard() {
       </div>
 
       {/* Dialogs */}
-      <Dialog open={actionDialog === 'call'} onOpenChange={(open: boolean) => !open && setActionDialog(null)}>
+      <Dialog open={actionDialog === 'call'} onOpenChange={(open: boolean) => {
+        if (!open) {
+          setActionDialog(null);
+          setSelectedCustomer(null);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Call Next Customer</DialogTitle>
@@ -627,7 +660,10 @@ export default function BarberDashboard() {
             <p className="text-gray-500 mt-1">Ticket #{selectedCustomer?.queueNumber}</p>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setActionDialog(null)} disabled={processing}>Cancel</Button>
+            <Button variant="ghost" onClick={() => {
+              setActionDialog(null);
+              setSelectedCustomer(null);
+            }} disabled={processing}>Cancel</Button>
             <Button onClick={confirmCallNext} className="bg-indigo-600 text-white hover:bg-indigo-700" disabled={processing}>
               {processing ? (
                 <>
@@ -640,7 +676,12 @@ export default function BarberDashboard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={actionDialog === 'complete'} onOpenChange={(open: boolean) => !open && setActionDialog(null)}>
+      <Dialog open={actionDialog === 'complete'} onOpenChange={(open: boolean) => {
+        if (!open) {
+          setActionDialog(null);
+          setSelectedCustomer(null);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Complete Service?</DialogTitle>

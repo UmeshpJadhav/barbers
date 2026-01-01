@@ -945,7 +945,7 @@ export default function CustomerPage() {
               <p>© 2025 Prashant Hair Saloon. All rights reserved.</p>
               <span className="hidden md:inline text-gray-300">|</span>
               <p className="font-medium text-gray-500 hover:text-gray-900 transition-colors">
-                Developed by <span className="text-indigo-600 font-bold">Umesh Jadhav</span>
+                Developed by <a href="https://umeshj-portfolio.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-bold hover:underline">Umesh Jadhav</a>
               </p>
             </div>
 
