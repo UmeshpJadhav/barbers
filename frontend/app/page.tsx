@@ -941,7 +941,13 @@ export default function CustomerPage() {
               <span>System Status: {socketConnected ? 'Online' : 'Reconnecting...'}</span>
             </div>
 
-            <p>© 2024 Prashant Hair Saloon. All rights reserved.</p>
+            <div className="flex flex-col md:flex-row items-center gap-1">
+              <p>© 2025 Prashant Hair Saloon. All rights reserved.</p>
+              <span className="hidden md:inline text-gray-300">|</span>
+              <p className="font-medium text-gray-500 hover:text-gray-900 transition-colors">
+                Developed by <span className="text-indigo-600 font-bold">Umesh Jadhav</span>
+              </p>
+            </div>
 
 
           </div>
