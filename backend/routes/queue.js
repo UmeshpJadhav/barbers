@@ -350,31 +350,33 @@ router.get('/active', authenticate, async (req, res) => {
 });
 
 // Mark customer as serving - Protected
+// Mark customer as serving - Protected
 router.patch('/serving/:queueNumber', authenticate, async (req, res) => {
   try {
     const { queueNumber } = req.params;
 
-    // SAFE QUERY: Only find customers who are currently waiting
-    const customer = await Queue.findOne({
-      queueNumber,
-      status: 'waiting'
-    });
+    // ATOMIC UPDATE: Find Waiting + Update to Serving in one go
+    const customer = await Queue.findOneAndUpdate(
+      { queueNumber, status: 'waiting' },
+      {
+        $set: {
+          status: 'serving',
+          servedAt: new Date()
+        }
+      },
+      { new: true } // Return the updated document
+    );
 
     if (!customer) {
-      // Fallback: Check if they are already serving (idempotency)
-      const servingCustomer = await Queue.findOne({ queueNumber, status: 'serving' });
-      if (servingCustomer) {
+      // Fallback: Check if they were ALREADY serving (active idempotency check)
+      const alreadyServing = await Queue.findOne({ queueNumber, status: 'serving' });
+      if (alreadyServing) {
         return res.json({ message: 'Customer already serving', queueNumber });
       }
-      return res.status(404).json({ error: 'Waiting customer not found for this ticket' });
+      return res.status(404).json({ error: 'Waiting customer not found for this ticket (or already served)' });
     }
 
-    // Proceed to serve user
-
-    // Update status
-    customer.status = 'serving';
-    customer.servedAt = new Date();
-    await customer.save();
+    // --- Success! The user is now serving. ---
 
     // Helper to format services
     const formatServices = (services) => {
@@ -389,8 +391,6 @@ router.patch('/serving/:queueNumber', authenticate, async (req, res) => {
     // Send SMS notification (non-blocking)
     try {
       const message = `Hello ${customer.customerName}, it's your turn now! Please come inside. Service: ${formatServices(customer.service)}. Est wait: ${estWaitTime}.`;
-
-      // Use SMS service if configured, or just log
       console.log(`[SMS] To: ${customer.phoneNumber}, Msg: ${message}`);
       // await sendSMS(customer.phoneNumber, message);
     } catch (smsError) {
@@ -420,22 +420,37 @@ router.patch('/complete/:queueNumber', authenticate, async (req, res) => {
   try {
     const { queueNumber } = req.params;
 
-    // SAFE QUERY: Prioritize finding the customer who is CURRENTLY SERVING
-    let customer = await Queue.findOne({ queueNumber, status: 'serving' });
+    // ATOMIC UPDATE: Prioritize Serve -> Complete
+    let customer = await Queue.findOneAndUpdate(
+      { queueNumber, status: 'serving' },
+      {
+        $set: {
+          status: 'completed',
+          servedAt: new Date()
+        }
+      },
+      { new: true }
+    );
 
     // If no one is serving with this ID, check if we are completing a waiter directly (rare but possible)
     if (!customer) {
-      customer = await Queue.findOne({ queueNumber, status: 'waiting' });
+      customer = await Queue.findOneAndUpdate(
+        { queueNumber, status: 'waiting' },
+        {
+          $set: {
+            status: 'completed',
+            servedAt: new Date()
+          }
+        },
+        { new: true }
+      );
     }
 
     if (!customer) {
       return res.status(404).json({ error: 'Active queue entry not found' });
     }
 
-    // Atomic status update
-    customer.status = 'completed';
-    customer.servedAt = new Date();
-    await customer.save();
+    // --- Success! User is completed ---
 
     // Emit socket event immediately
     req.io.emit('queueUpdated', {
@@ -478,17 +493,21 @@ router.delete('/cancel/:phoneNumber', async (req, res) => {
   try {
     const { phoneNumber } = req.params;
 
-    const customer = await Queue.findOne({
-      phoneNumber,
-      status: { $in: ['waiting', 'serving'] }
-    });
+    // ATOMIC UPDATE: Find active entry and mark cancelled
+    const customer = await Queue.findOneAndUpdate(
+      {
+        phoneNumber,
+        status: { $in: ['waiting', 'serving'] }
+      },
+      {
+        $set: { status: 'cancelled' }
+      },
+      { new: true }
+    );
 
     if (!customer) {
       return res.status(404).json({ error: 'Queue entry not found' });
     }
-
-    customer.status = 'cancelled';
-    await customer.save();
 
     // Emit socket event
     req.io.emit('queueUpdated', {
