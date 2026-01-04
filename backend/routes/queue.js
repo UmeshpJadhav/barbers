@@ -392,7 +392,7 @@ router.patch('/serving/:queueNumber', authenticate, async (req, res) => {
     try {
       const message = `Hello ${customer.customerName}, it's your turn now! Please come inside. Service: ${formatServices(customer.service)}. Est wait: ${estWaitTime}.`;
       console.log(`[SMS] To: ${customer.phoneNumber}, Msg: ${message}`);
-      // await sendSMS(customer.phoneNumber, message);
+      await sendSMS(customer.phoneNumber, message);
     } catch (smsError) {
       console.warn('Failed to send SMS:', smsError);
     }
