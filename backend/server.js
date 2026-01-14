@@ -6,6 +6,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import queueRoutes from './routes/queue.js';
 import authRoutes from './routes/auth.js';
+
 import { initializeSocket } from './socket/socket.js';
 
 dotenv.config();

@@ -118,6 +118,12 @@ export default function CustomerPage() {
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [service, setService] = useState<string[]>(['Haircut']);
+
+  // VIP Feature
+  const [isPriority, setIsPriority] = useState(false);
+
+
+
   const [positionData, setPositionData] = useState<PositionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -139,6 +145,16 @@ export default function CustomerPage() {
   const [isShopOpen, setIsShopOpen] = useState(true);
 
   const checkPositionRef = useRef<(() => Promise<void>) | null>(null);
+
+
+
+
+
+
+
+
+
+
 
   const checkPosition = async (phoneToCheck?: string) => {
     const phone = phoneToCheck || phoneNumber;
@@ -258,7 +274,7 @@ export default function CustomerPage() {
     setSuccess('');
 
     try {
-      const result = await queueAPI.joinQueue(customerName, phoneNumber, service);
+      const result = await queueAPI.joinQueue(customerName, phoneNumber, service, isPriority);
 
       // Save session
       localStorage.setItem('queue_phone', phoneNumber);
@@ -521,6 +537,7 @@ export default function CustomerPage() {
 
                   {isShopOpen ? (
                     <form onSubmit={handleJoinQueue} className="space-y-6">
+
                       <div className="space-y-2">
                         <Label htmlFor="name" className="text-gray-700 font-semibold ml-1">Your Name</Label>
                         <Input
@@ -544,6 +561,22 @@ export default function CustomerPage() {
                           placeholder="98765 43210"
                           className="h-12 border-gray-200 focus:border-indigo-500 focus:ring-indigo-100 rounded-xl"
                         />
+                      </div>
+
+                      <div className="space-y-2 p-4 bg-amber-50 border border-amber-200 rounded-xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-amber-200/20 rounded-full blur-xl -mr-10 -mt-10" />
+                        <label className="flex items-start gap-3 cursor-pointer relative z-10">
+                          <input
+                            type="checkbox"
+                            checked={isPriority}
+                            onChange={(e) => setIsPriority(e.target.checked)}
+                            className="mt-1 size-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                          />
+                          <div>
+                            <span className="block font-bold text-gray-900">VIP Priority Ticket (+₹100)</span>
+                            <span className="block text-sm text-gray-600 mt-0.5">Skip the wait! Jump to the front of the line immediately.</span>
+                          </div>
+                        </label>
                       </div>
 
                       <div className="space-y-3">
@@ -712,10 +745,10 @@ export default function CustomerPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </div >
 
       {/* Services Section */}
-      <div id="services" className="container mx-auto px-4 pb-8 md:pb-12">
+      < div id="services" className="container mx-auto px-4 pb-8 md:pb-12" >
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10">
             <h2 className="text-3xl font-bold text-gray-900">Signature Services</h2>
@@ -723,12 +756,15 @@ export default function CustomerPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              { title: 'Haircut', price: '₹100', time: '30 min', desc: 'Precision cuts tailored to your style.' },
-              { title: 'Beard', price: '₹60', time: '15 min', desc: 'Expert beard shaping and trimming.' },
-              { title: 'Clean-up', price: '₹200', time: '20 min', desc: 'Quick facial refresh and cleansing.' },
+              { title: 'Haircut', price: '₹120', time: '30 min', desc: 'Precision cuts tailored to your style.' },
+              { title: 'Beard Setting', price: '₹80', time: '20 min', desc: 'Expert beard shaping and trimming.' },
+              { title: 'Clean Shave', price: '₹60', time: '20 min', desc: 'Smooth, clean, and classic look.' },
+              { title: 'Face Cleanup', price: '₹250', time: '25 min', desc: 'Quick refresh for glowing skin.' },
+              { title: 'Facial', price: '₹400', time: '45 min', desc: 'Deep cleansing and relaxation.' },
+              { title: 'Treatment Facial', price: '₹600', time: '60 min', desc: 'Advanced skin therapy.' },
               { title: 'Ladies Haircut', price: '₹250', time: '40 min', desc: 'Professional styling for women.' },
-              { title: 'Facial Normal', price: '₹300', time: '30 min', desc: 'Standard facial for glowing skin.' },
-              { title: 'Treatment Facial', price: '₹500', time: '45 min', desc: 'Advanced skin treatment and care.' },
+              { title: 'Hair Smoothing', price: '₹3000', time: '120 min', desc: 'Silky smooth hair treatment.' },
+              { title: 'Hair Pumping', price: '₹800+', time: '45 min', desc: 'Volume boosting treatment.' },
             ].map((item) => (
               <div key={item.title} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow-md transition-all">
                 <div className="flex items-center justify-between mb-2">
@@ -744,10 +780,10 @@ export default function CustomerPage() {
             ))}
           </div>
         </div>
-      </div>
+      </div >
 
       {/* Testimonials */}
-      <div className="bg-gradient-to-br from-indigo-50 via-white to-indigo-50/60">
+      < div className="bg-gradient-to-br from-indigo-50 via-white to-indigo-50/60" >
         <div className="container mx-auto px-4 py-12 md:py-16">
           <div className="max-w-4xl mx-auto text-center mb-10">
             <h2 className="text-3xl font-bold text-gray-900">Clients Love Prashant</h2>
@@ -773,10 +809,10 @@ export default function CustomerPage() {
             ))}
           </div>
         </div>
-      </div>
+      </div >
 
       {/* Team & Trust */}
-      <div className="container mx-auto px-4 py-12 md:py-16">
+      < div className="container mx-auto px-4 py-12 md:py-16" >
         <div className="grid gap-8 lg:grid-cols-2 items-start">
           <div>
             <h2 className="text-3xl font-bold text-gray-900 mb-3">Meet the Stylists</h2>
@@ -842,10 +878,10 @@ export default function CustomerPage() {
             </div>
           </div>
         </div>
-      </div>
+      </div >
 
       {/* Features Section */}
-      <div className="container mx-auto px-4 py-12 md:py-16">
+      < div className="container mx-auto px-4 py-12 md:py-16" >
         <div className="grid md:grid-cols-3 gap-6 mb-12">
           <div className="text-center p-6 rounded-xl bg-white shadow-md hover:shadow-lg transition-shadow">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4">
@@ -869,7 +905,7 @@ export default function CustomerPage() {
             <p className="text-gray-600">Quality cuts and grooming at affordable prices</p>
           </div>
         </div>
-      </div>
+      </div >
 
       {/* Footer */}
       {/* Footer */}
@@ -956,6 +992,6 @@ export default function CustomerPage() {
           </div>
         </div>
       </footer>
-    </div>
+    </div >
   );
 }

@@ -73,7 +73,7 @@ router.post('/join', async (req, res) => {
   try {
     console.log('📝 Join Request Body:', req.body);
     // Support both 'service' (legacy) and 'services' (new)
-    let { customerName, phoneNumber, services, service } = req.body;
+    let { customerName, phoneNumber, services, service, isPriority } = req.body;
 
     // Normalize to array
     if (!services && service) {
@@ -125,6 +125,11 @@ router.post('/join', async (req, res) => {
       }
     });
 
+    // Add VIP Fee
+    if (isPriority) {
+      totalPrice += 100;
+    }
+
     // Estimate wait time: Sum of estimatedWaitTime of all people ahead + active serving time?
     // Simplified: Sum of (avg time) * (people ahead). 
     // Better: We can store 'estimatedServiceTime' on each entry.
@@ -153,13 +158,17 @@ router.post('/join', async (req, res) => {
       }
     });
 
+    // VIPs skip line logic for wait time estimation is complex.
+    // For now, we will just use the standard calculation but strictly their position will be better.
+
     const queueEntry = new Queue({
       customerName,
       phoneNumber,
       service: services, // Save as array
       price: totalPrice,
       queueNumber,
-      estimatedWaitTime
+      estimatedWaitTime,
+      isPriority: !!isPriority
     });
 
     await queueEntry.save();
@@ -246,7 +255,6 @@ router.get('/stats', async (req, res) => {
       ? Math.round(activeQueue.filter(c => c.status === 'waiting').reduce((sum, c) => sum + c.estimatedWaitTime, 0) / waiting)
       : 0;
 
-    // Create a sanitized list for public display
     // Create a sanitized list for public display, removing duplicates
     const uniqueQueueMap = new Map();
     activeQueue.forEach(c => {
@@ -320,7 +328,8 @@ router.get('/active', authenticate, async (req, res) => {
       };
     }
 
-    const activeQueue = await Queue.find(query).sort({ queueNumber: 1 });
+    // Sort: Priority customers first, then by Queue Number
+    const activeQueue = await Queue.find(query).sort({ isPriority: -1, queueNumber: 1 });
 
     // Calculate stats
     const totalEarnings = activeQueue
