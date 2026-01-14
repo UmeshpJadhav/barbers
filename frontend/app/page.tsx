@@ -550,13 +550,16 @@ export default function CustomerPage() {
                         <Label htmlFor="services" className="text-gray-700 font-semibold ml-1">Select Services</Label>
                         <div className="space-y-2 sm:space-y-3">
                           {[
-                            { name: 'Haircut', price: '₹100', time: '30m' },
-                            { name: 'Beard', price: '₹60', time: '15m' },
-                            { name: 'Clean-up', price: '₹200', time: '20m' },
-                            { name: 'Head massage', price: '₹60', time: '15m' },
-                            { name: 'Facial normal', price: '₹300', time: '30m' },
+                            { name: 'Haircut', price: '₹120', time: '30m' },
+                            { name: 'Beard setting', price: '₹80', time: '20m' },
+                            { name: 'Clean shave', price: '₹60', time: '20m' },
+                            { name: 'Face cleanup', price: '₹250', time: '25m' },
+                            { name: 'Facial', price: '₹400', time: '45m' },
+                            { name: 'Treatment facial', price: '₹600', time: '60m' },
                             { name: 'Ladies haircut', price: '₹250', time: '40m' },
-                            { name: 'Traement facial', price: '₹500', time: '45m' },
+                            { name: 'Hair smoothing (Shoulder)', price: '₹3000', time: '120m' },
+                            { name: 'Hair pumping men (Half)', price: '₹800', time: '45m' },
+                            { name: 'Hair pumping men (Full)', price: '₹1500', time: '75m' },
                           ].map((s) => {
                             const isSelected = service.includes(s.name);
                             return (

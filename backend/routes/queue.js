@@ -56,13 +56,16 @@ const protectBarberRoutes = (req, res, next) => {
 // Service Prices
 // Service Details (Price in INR, Time in Minutes)
 const SERVICES = {
-  'Haircut': { price: 100, time: 30 },
-  'Beard': { price: 60, time: 15 },
-  'Clean-up': { price: 200, time: 20 },
-  'Facial normal': { price: 300, time: 30 },
-  'Traement facial': { price: 500, time: 45 },
-  'Head massage': { price: 60, time: 15 },
-  'Ladies haircut': { price: 250, time: 40 }
+  'Haircut': { price: 120, time: 30 },
+  'Beard setting': { price: 80, time: 20 },
+  'Clean shave': { price: 60, time: 20 },
+  'Face cleanup': { price: 250, time: 25 },
+  'Facial': { price: 400, time: 45 },
+  'Treatment facial': { price: 600, time: 60 },
+  'Ladies haircut': { price: 250, time: 40 },
+  'Hair smoothing (Shoulder)': { price: 3000, time: 120 },
+  'Hair pumping men (Half)': { price: 800, time: 45 },
+  'Hair pumping men (Full)': { price: 1500, time: 75 }
 };
 
 // Join the queue
